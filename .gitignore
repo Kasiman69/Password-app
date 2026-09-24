@@ -1,0 +1,7 @@
+/node_modules/
+/pages-dist/
+/family-vault/
+.env*
+*.tsbuildinfo
+.DS_Store
+npm-debug.log*
