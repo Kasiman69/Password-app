@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { ArrowRight, KeyRound, LockKeyhole, ShieldCheck, Smartphone, Eye, EyeOff, LogOut, LoaderCircle } from "lucide-react";
+import { ArrowRight, KeyRound, LockKeyhole, Eye, EyeOff, LogOut, LoaderCircle } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Toaster } from "@/components/ui/sonner";
@@ -12,15 +12,15 @@ import { deriveKey, newSalt, seal, unseal, type Vault } from "@/lib/vault-crypto
 import { createVault, readVault, type VaultRow } from "@/lib/vault-store";
 import { VaultWorkbench } from "./vault-workbench";
 
-export function Brand(){return <a href="./" className="brand" aria-label="Hearth home"><span className="brand-mark"><KeyRound size={22}/></span>hearth<span className="brand-dot">.</span></a>;}
+export function Brand(){return <a href="./" className="brand" aria-label="Pöhner Passwords home"><span className="brand-mark"><KeyRound size={22}/></span>Pöhner Passwords</a>;}
 export function PasswordInput({label,placeholder,autoComplete="current-password",minLength,onChange,value,required=true}:{label:string;placeholder?:string;autoComplete?:string;minLength?:number;onChange?:(value:string)=>void;value?:string;required?:boolean}){
  const [visible,setVisible]=useState(false);
  return <label>{label}<span className="password-input"><input aria-label={label} type={visible?"text":"password"} placeholder={placeholder} autoComplete={autoComplete} minLength={minLength} maxLength={512} value={value} onChange={e=>onChange?.(e.target.value)} required={required}/><button type="button" aria-label={visible?`Hide ${label.toLowerCase()}`:`Show ${label.toLowerCase()}`} onClick={()=>setVisible(!visible)}>{visible?<EyeOff size={18}/>:<Eye size={18}/>}</button></span></label>;
 }
-function AuthShell({children}:{children:React.ReactNode}){return <main className="auth-shell"><section className="auth-story"><Brand/><div className="story-content"><span className="eyebrow">YOUR PERSONAL PASSWORD VAULT</span><h1>A little less <br/>to remember.</h1><p>One quiet place for your passwords. <br/>Just for you, and everyone in your family.</p><div className="story-note"><ShieldCheck size={24}/><span>Separate accounts.<br/><strong>Always your own private vault.</strong></span></div></div><div className="story-footer"><LockKeyhole size={15}/> Your vault passphrase stays on your device.</div></section><section className="auth-main"><div className="auth-card">{children}</div><span className="auth-bottom">A private vault for every member of your family.</span></section></main>;}
+function AuthShell({children}:{children:React.ReactNode}){return <main className="auth-shell minimal-auth"><header className="auth-brand"><Brand/></header><section className="auth-main"><div className="auth-card">{children}</div></section></main>;}
 const errorText=(error:unknown)=>error instanceof Error?error.message:"Something went wrong. Please try again.";
 
-function AuthForm({onDemo,recovery,onRecovered}:{onDemo:()=>void;recovery:boolean;onRecovered:()=>void}){
+function AuthForm({recovery,onRecovered}:{recovery:boolean;onRecovered:()=>void}){
  const [mode,setMode]=useState("signin"),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[confirm,setConfirm]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[isError,setIsError]=useState(false);
  const activeMode=recovery?"reset":mode;
  function switchMode(value:string){setMode(value);setPassword("");setConfirm("");setMessage("");}
@@ -40,7 +40,7 @@ function AuthForm({onDemo,recovery,onRecovered}:{onDemo:()=>void;recovery:boolea
    }
   }catch(error){setIsError(true);setMessage(errorText(error));}finally{setBusy(false);}
  }
- return <AuthShell><span className="section-kicker">WELCOME TO HEARTH</span><h2>{activeMode==="forgot"?"Let’s get you back in.":activeMode==="reset"?"A fresh start.":<>Your passwords. <br/>Close at hand.</>}</h2><p className="muted intro">{activeMode==="forgot"?"Reset your account password by email.":activeMode==="reset"?"Choose a new account password.":activeMode==="signup"?"Your own account. Your own private vault.":"Sign in to open your personal vault."}</p>
+ return <AuthShell><h2>{activeMode==="forgot"?"Reset password":activeMode==="reset"?"New password":"Password vault"}</h2><p className="muted intro">{activeMode==="forgot"?"Reset your account password by email.":activeMode==="reset"?"Choose a new account password.":activeMode==="signup"?"Create your account.":"Sign in to your vault."}</p>
  {(activeMode==="signin"||activeMode==="signup")&&<Tabs value={mode} onValueChange={switchMode}><TabsList className="auth-tabs"><TabsTrigger value="signin" disabled={busy}>Sign in</TabsTrigger><TabsTrigger value="signup" disabled={busy}>Create account</TabsTrigger></TabsList></Tabs>}
  <form className="form-stack" onSubmit={submit}><fieldset disabled={busy} className="form-stack">
  {activeMode!=="reset"&&<label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" required maxLength={254}/></label>}
@@ -50,8 +50,7 @@ function AuthForm({onDemo,recovery,onRecovered}:{onDemo:()=>void;recovery:boolea
  {message&&<p role="status" className={`notice ${isError?"error":""}`}>{message}</p>}
  <button className="btn primary full" type="submit">{busy?<><LoaderCircle className="spin" size={18}/>Please wait…</>:<>{activeMode==="signin"?"Sign in":activeMode==="signup"?"Create account":activeMode==="forgot"?"Send reset link":"Save new password"}<ArrowRight size={18}/></>}</button>
  </fieldset></form>
- {activeMode==="forgot"?<button className="text-btn full" onClick={()=>switchMode("signin")}>Back to sign in</button>:!recovery&&<button className="text-btn full demo-link" onClick={onDemo}>Take a look with demo data <ArrowRight size={14}/></button>}
- <div className="auth-footnote"><Smartphone size={20}/><p>At home on your iPhone.<br/><span>In Safari, tap Share → Add to Home Screen.</span></p></div>
+ {activeMode==="forgot"&&<button className="text-btn full" onClick={()=>switchMode("signin")}>Back to sign in</button>}
  </AuthShell>;
 }
 function VaultSession({user}:{user:User}){
@@ -88,18 +87,19 @@ function VaultSession({user}:{user:User}){
   }catch(e){if(current===epoch.current)setError(errorText(e));}finally{if(current===epoch.current){setBusy(false);busyRef.current=false;}}
  }
  if(unlocked&&row)return <VaultWorkbench key={epoch.current} initialVault={unlocked.vault} cryptoKey={unlocked.key} initialRow={row} email={user.email??"Your account"} onLock={lock}/>;
- return <AuthShell><span className="gate-icon"><LockKeyhole size={28}/></span><span className="section-kicker">{loaded?(row?"WELCOME BACK":"MAKE YOURSELF AT HOME"):"CONNECTING TO YOUR VAULT"}</span><h2>{loaded?(row?"Your vault is locked.":"Your vault. Your key."):"One moment…"}</h2><p className="muted intro account-email">{user.email}</p>
+ return <AuthShell><span className="gate-icon"><LockKeyhole size={28}/></span><span className="section-kicker">{loaded?(row?"WELCOME BACK":"CREATE YOUR VAULT"):"CONNECTING TO YOUR VAULT"}</span><h2>{loaded?(row?"Your vault is locked.":"Your vault. Your key."):"One moment…"}</h2><p className="muted intro account-email">{user.email}</p>
  {loaded?<form className="form-stack" onSubmit={unlock}><fieldset disabled={busy} className="form-stack"><p className="muted small">{row?"Enter your vault passphrase to access your passwords.":"Choose a separate passphrase to encrypt your vault. Use something long and different from your account password."}</p><PasswordInput label="Vault passphrase" value={passphrase} onChange={setPassphrase} autoComplete="off" minLength={row?undefined:16} placeholder={row?"Enter your vault passphrase":"At least 16 characters"}/>{!row&&<><PasswordInput label="Confirm vault passphrase" value={confirmation} onChange={setConfirmation} autoComplete="off" placeholder="Enter it once more"/><div className="check-line"><Checkbox id="recovery-ack" checked={ack} onCheckedChange={v=>setAck(v===true)}/><label htmlFor="recovery-ack">I’ve saved this passphrase somewhere safe. If I lose it, my vault cannot be recovered.</label></div></>}{error&&<p className="notice error" role="alert">{error}</p>}<button className="btn primary full" type="submit">{busy?<LoaderCircle className="spin" size={18}/>:<LockKeyhole size={18}/>} {busy?"Opening your vault…":row?"Unlock vault":"Create my vault"}</button></fieldset></form>:error?<><p className="notice error" role="alert">{error}</p><button className="btn full" onClick={()=>void load()}>Try again</button></>:<LoaderCircle className="spin"/>}
  <button className="text-btn full demo-link" onClick={()=>{lock();void supabase.auth.signOut({scope:"local"});}}><LogOut size={15}/> Sign out</button><p className="small muted center">Your vault locks after 5 minutes away or 5 minutes of inactivity.</p></AuthShell>;
 }
 export default function Home(){
- const [user,setUser]=useState<User|null>(null),[ready,setReady]=useState(false),[demo,setDemo]=useState(false),[recovery,setRecovery]=useState(false);
+ const [user,setUser]=useState<User|null>(null),[ready,setReady]=useState(false),[recovery,setRecovery]=useState(false);
  useEffect(()=>{
   const {data:{subscription}}=supabase.auth.onAuthStateChange((event,session)=>{setUser(session?.user??null);setReady(true);if(event==="PASSWORD_RECOVERY")setRecovery(true);if(event==="SIGNED_OUT")setRecovery(false);});
   return()=>subscription.unsubscribe();
  },[]);
- return <>{!ready?<AuthShell><h2>Welcome to Hearth.</h2><p className="muted intro">Opening your app…</p><LoaderCircle className="spin"/></AuthShell>:demo?<VaultWorkbench email="alex@example.com" demo onLock={()=>setDemo(false)}/>:recovery?<AuthForm recovery onRecovered={()=>{setRecovery(false);history.replaceState(null,"",appHomeUrl());}} onDemo={()=>{}}/>:user?<VaultSession key={user.id} user={user}/>:<AuthForm recovery={false} onRecovered={()=>{}} onDemo={()=>setDemo(true)}/>}<Toaster position="top-center"/></>;
+ return <>{!ready?<AuthShell><h2>Pöhner Passwords</h2><p className="muted intro">Opening your app…</p><LoaderCircle className="spin"/></AuthShell>:recovery?<AuthForm recovery onRecovered={()=>{setRecovery(false);history.replaceState(null,"",appHomeUrl());}}/>:user?<VaultSession key={user.id} user={user}/>:<AuthForm recovery={false} onRecovered={()=>{}}/>}<Toaster position="top-center"/></>;
 }
+
 
 
 

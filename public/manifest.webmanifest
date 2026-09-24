@@ -1,6 +1,6 @@
 {
-  "name": "Hearth — Password vault",
-  "short_name": "Hearth",
+  "name": "Pöhner Passwords",
+  "short_name": "Pöhner Passwords",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
