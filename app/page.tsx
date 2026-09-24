@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
 import { appHomeUrl } from "@/lib/app-url";
+import { createAutoLock } from "@/lib/auto-lock";
 import { deriveKey, newSalt, seal, unseal, type Vault } from "@/lib/vault-crypto";
 import { createVault, readVault, type VaultRow } from "@/lib/vault-store";
 import { VaultWorkbench } from "./vault-workbench";
@@ -55,16 +56,20 @@ function AuthForm({onDemo,recovery,onRecovered}:{onDemo:()=>void;recovery:boolea
 }
 function VaultSession({user}:{user:User}){
  const [row,setRow]=useState<VaultRow|null>(null),[loaded,setLoaded]=useState(false),[error,setError]=useState(""),[passphrase,setPassphrase]=useState(""),[confirmation,setConfirmation]=useState(""),[ack,setAck]=useState(false),[busy,setBusy]=useState(false),[unlocked,setUnlocked]=useState<{key:CryptoKey;vault:Vault}|null>(null);
- const epoch=useRef(0);const lastActive=useRef(Date.now());const busyRef=useRef(false);
+ const epoch=useRef(0);const busyRef=useRef(false);
  const lock=useCallback(()=>{epoch.current++;setUnlocked(null);setPassphrase("");setConfirmation("");setError("");setBusy(false);busyRef.current=false;},[]);
+ const autoLock=useRef<ReturnType<typeof createAutoLock>|null>(null);
+ if(!autoLock.current)autoLock.current=createAutoLock(lock);
  const load=useCallback(async()=>{setError("");setLoaded(false);const current=epoch.current;try{const latest=await readVault(user.id);if(current===epoch.current){setRow(latest);setLoaded(true);}}catch(e){if(current===epoch.current)setError(errorText(e));}},[user.id]);
  useEffect(()=>{void load();return()=>{epoch.current++;};},[load]);
  useEffect(()=>{
-  const activity=()=>{lastActive.current=Date.now();};
-  const hide=()=>{if(document.visibilityState==="hidden")lock();else if(!loaded)void load();};
-  const timer=setInterval(()=>{if(Date.now()-lastActive.current>=5*60*1000)lock();},1000);
-  window.addEventListener("pointerdown",activity);window.addEventListener("keydown",activity);document.addEventListener("visibilitychange",hide);window.addEventListener("pagehide",lock);
-  return()=>{clearInterval(timer);window.removeEventListener("pointerdown",activity);window.removeEventListener("keydown",activity);document.removeEventListener("visibilitychange",hide);window.removeEventListener("pagehide",lock);};
+  const activity=(event:Event)=>{if(autoLock.current!.activity()){event.preventDefault();event.stopImmediatePropagation();}};
+  const leave=()=>autoLock.current!.leave();
+  const resume=()=>{if(document.hidden)return;autoLock.current!.resume();if(!loaded)void load();};
+  const visibility=()=>{if(document.hidden)leave();else resume();};
+  const timer=setInterval(()=>autoLock.current!.check(),1000);
+  window.addEventListener("pointerdown",activity,true);window.addEventListener("keydown",activity,true);window.addEventListener("click",activity,true);document.addEventListener("visibilitychange",visibility);window.addEventListener("pagehide",leave);window.addEventListener("pageshow",resume);
+  return()=>{clearInterval(timer);window.removeEventListener("pointerdown",activity,true);window.removeEventListener("keydown",activity,true);window.removeEventListener("click",activity,true);document.removeEventListener("visibilitychange",visibility);window.removeEventListener("pagehide",leave);window.removeEventListener("pageshow",resume);};
  },[lock,loaded,load]);
  async function unlock(e:React.FormEvent){e.preventDefault();if(busyRef.current)return;busyRef.current=true;setBusy(true);setError("");const current=epoch.current;const phrase=passphrase;setPassphrase("");setConfirmation("");
   try{
@@ -79,13 +84,13 @@ function VaultSession({user}:{user:User}){
    if(latest){try{vault=await unseal(latest,key,user.id);}catch{throw new Error("That passphrase did not unlock the vault, or the vault data is damaged. Please try again.");}}
    const saved=latest??await createVault(user.id,salt,await seal(vault,key,user.id));
    if(current!==epoch.current||document.hidden)return;
-   setRow(saved);setUnlocked({key,vault});lastActive.current=Date.now();
+   setRow(saved);setUnlocked({key,vault});autoLock.current!.reset();
   }catch(e){if(current===epoch.current)setError(errorText(e));}finally{if(current===epoch.current){setBusy(false);busyRef.current=false;}}
  }
  if(unlocked&&row)return <VaultWorkbench key={epoch.current} initialVault={unlocked.vault} cryptoKey={unlocked.key} initialRow={row} email={user.email??"Your account"} onLock={lock}/>;
  return <AuthShell><span className="gate-icon"><LockKeyhole size={28}/></span><span className="section-kicker">{loaded?(row?"WELCOME BACK":"MAKE YOURSELF AT HOME"):"CONNECTING TO YOUR VAULT"}</span><h2>{loaded?(row?"Your vault is locked.":"Your vault. Your key."):"One moment…"}</h2><p className="muted intro account-email">{user.email}</p>
  {loaded?<form className="form-stack" onSubmit={unlock}><fieldset disabled={busy} className="form-stack"><p className="muted small">{row?"Enter your vault passphrase to access your passwords.":"Choose a separate passphrase to encrypt your vault. Use something long and different from your account password."}</p><PasswordInput label="Vault passphrase" value={passphrase} onChange={setPassphrase} autoComplete="off" minLength={row?undefined:16} placeholder={row?"Enter your vault passphrase":"At least 16 characters"}/>{!row&&<><PasswordInput label="Confirm vault passphrase" value={confirmation} onChange={setConfirmation} autoComplete="off" placeholder="Enter it once more"/><div className="check-line"><Checkbox id="recovery-ack" checked={ack} onCheckedChange={v=>setAck(v===true)}/><label htmlFor="recovery-ack">I’ve saved this passphrase somewhere safe. If I lose it, my vault cannot be recovered.</label></div></>}{error&&<p className="notice error" role="alert">{error}</p>}<button className="btn primary full" type="submit">{busy?<LoaderCircle className="spin" size={18}/>:<LockKeyhole size={18}/>} {busy?"Opening your vault…":row?"Unlock vault":"Create my vault"}</button></fieldset></form>:error?<><p className="notice error" role="alert">{error}</p><button className="btn full" onClick={()=>void load()}>Try again</button></>:<LoaderCircle className="spin"/>}
- <button className="text-btn full demo-link" onClick={()=>{lock();void supabase.auth.signOut({scope:"local"});}}><LogOut size={15}/> Sign out</button><p className="small muted center">Your vault locks when you leave the app or after 5 minutes of inactivity.</p></AuthShell>;
+ <button className="text-btn full demo-link" onClick={()=>{lock();void supabase.auth.signOut({scope:"local"});}}><LogOut size={15}/> Sign out</button><p className="small muted center">Your vault locks after 5 minutes away or 5 minutes of inactivity.</p></AuthShell>;
 }
 export default function Home(){
  const [user,setUser]=useState<User|null>(null),[ready,setReady]=useState(false),[demo,setDemo]=useState(false),[recovery,setRecovery]=useState(false);
@@ -95,5 +100,6 @@ export default function Home(){
  },[]);
  return <>{!ready?<AuthShell><h2>Welcome to Hearth.</h2><p className="muted intro">Opening your app…</p><LoaderCircle className="spin"/></AuthShell>:demo?<VaultWorkbench email="alex@example.com" demo onLock={()=>setDemo(false)}/>:recovery?<AuthForm recovery onRecovered={()=>{setRecovery(false);history.replaceState(null,"",appHomeUrl());}} onDemo={()=>{}}/>:user?<VaultSession key={user.id} user={user}/>:<AuthForm recovery={false} onRecovered={()=>{}} onDemo={()=>setDemo(true)}/>}<Toaster position="top-center"/></>;
 }
+
 
 

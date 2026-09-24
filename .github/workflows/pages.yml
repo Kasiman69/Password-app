@@ -25,8 +25,8 @@ jobs:
         id: pages
         uses: actions/configure-pages@v5
       - run: npm ci
-      - name: Check encryption and password generation
-        run: node --experimental-strip-types --test scripts/crypto.test.mjs
+      - name: Check encryption and automatic locking
+        run: node --experimental-strip-types --test scripts/crypto.test.mjs scripts/auto-lock.test.mjs
       - name: Build the static website
         run: npm run build:pages
         env:
@@ -49,3 +49,4 @@ jobs:
       - name: Publish
         id: deployment
         uses: actions/deploy-pages@v4
+
