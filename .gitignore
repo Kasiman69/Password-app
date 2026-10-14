@@ -5,3 +5,5 @@
 *.tsbuildinfo
 .DS_Store
 npm-debug.log*
+/desktop/node_modules/
+/installers/

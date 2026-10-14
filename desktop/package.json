@@ -1,0 +1,41 @@
+{
+  "name": "pohner-passwords-desktop",
+  "version": "1.0.0",
+  "description": "Pöhner Passwords for Windows",
+  "author": "Pöhner",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win nsis --x64"
+  },
+  "build": {
+    "appId": "se.pohner.passwords",
+    "productName": "Pöhner Passwords",
+    "directories": {
+      "output": "../installers"
+    },
+    "files": [
+      "main.cjs",
+      "offline.html",
+      "icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.png",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "Pohner-Passwords-Setup-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "44.7.2",
+    "electron-builder": "26.15.3"
+  }
+}
